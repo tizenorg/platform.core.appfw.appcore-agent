@@ -1,45 +1,40 @@
+#
 
-Name:       appcore-agent
-Summary:    Agent Application basic
-Version:    1.0
-Release:    8
-Group:      TO_BE/FILLED_IN
-License:    SAMSUNG
-Source0:    appcore-agent-%{version}.tar.gz
-BuildRequires:  pkgconfig(aul)
-BuildRequires:  pkgconfig(dlog)
-BuildRequires:  pkgconfig(sysman)
-BuildRequires:  pkgconfig(glib-2.0)
-BuildRequires:  pkgconfig(pmapi)
-BuildRequires:  pkgconfig(capi-appfw-application)
-BuildRequires:  pkgconfig(vconf)
+Name:           appcore-agent
+Version:        1.0
+Release:        8
+License:        Apache-2.0
+Summary:        Agent Application basic
+Group:          Application Framework/Service
+Source0:        appcore-agent-%{version}.tar.gz
 BuildRequires:  cmake
 BuildRequires:  sysman-devel
-
+BuildRequires:  pkgconfig(aul)
+BuildRequires:  pkgconfig(capi-appfw-application)
+BuildRequires:  pkgconfig(dlog)
+BuildRequires:  pkgconfig(glib-2.0)
+BuildRequires:  pkgconfig(pmapi)
+BuildRequires:  pkgconfig(sysman)
+BuildRequires:  pkgconfig(vconf)
 
 %description
 SLP agent application basic
 
-
 %package devel
-Summary:    appcore agent
-Group:      Development/Libraries
-Requires:   %{name} = %{version}-%{release}
+Summary:        Applocation Core Agent
+Group:          Application Framework/Development
+Requires:       %{name} = %{version}
 %description devel
-appcore agent (developement files)
+%devel_desc
 
 %prep
 %setup -q
 
-
 %build
-
-CFLAGS="$CFLAGS" LDFLAGS="$LDFLAGS" cmake . -DCMAKE_INSTALL_PREFIX=/usr
-
-make %{?jobs:-j%jobs}
+%cmake .
+make %{?_smp_mflags}
 
 %install
-rm -rf %{buildroot}
 %make_install
 
 
@@ -49,14 +44,15 @@ rm -rf %{buildroot}
 
 
 %files
+%license LICENSE
 %manifest appcore-agent.manifest
 %defattr(-,root,root,-)
-/usr/lib/libappcore-agent.so.1
-/usr/lib/libappcore-agent.so.1.1
+%{_libdir}/libappcore-agent.so.1
+%{_libdir}/libappcore-agent.so.1.1
 
 %files devel
 %defattr(-,root,root,-)
-/usr/lib/pkgconfig/appcore-agent.pc
-/usr/lib/libappcore-agent.so
-/usr/include/appcore-agent/appcore-agent.h
-/usr/include/appcore-agent/service_app.h
+%{_libdir}/pkgconfig/appcore-agent.pc
+%{_libdir}/libappcore-agent.so
+%{_includedir}/appcore-agent/appcore-agent.h
+%{_includedir}/appcore-agent/service_app.h
