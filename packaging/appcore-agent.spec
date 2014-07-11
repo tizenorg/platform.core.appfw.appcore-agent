@@ -1,13 +1,11 @@
-#
-
 Name:           appcore-agent
 Version:        1.0
-Release:        8
+Release:        0
 License:        Apache-2.0
 Summary:        Agent Application basic
 Group:          Application Framework/Service
 Source0:        appcore-agent-%{version}.tar.gz
-Source1001: 	appcore-agent.manifest
+Source1001:     appcore-agent.manifest
 BuildRequires:  cmake
 BuildRequires:  sysman-devel
 BuildRequires:  pkgconfig(aul)
@@ -34,21 +32,18 @@ cp %{SOURCE1001} .
 
 %build
 %cmake .
-make %{?_smp_mflags}
+%__make %{?_smp_mflags}
 
 %install
 %make_install
-
 
 %post -p /sbin/ldconfig
 
 %postun -p /sbin/ldconfig
 
-
 %files
 %manifest %{name}.manifest
 %license LICENSE
-%manifest appcore-agent.manifest
 %defattr(-,root,root,-)
 %{_libdir}/libappcore-agent.so.1
 %{_libdir}/libappcore-agent.so.1.1
