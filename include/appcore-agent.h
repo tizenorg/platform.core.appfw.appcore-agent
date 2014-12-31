@@ -60,7 +60,7 @@ int appcore_agent_main(int argc, char **argv, struct agentcore_ops *ops);
 int appcore_agent_terminate();
 
 int appcore_agent_set_event_callback(enum appcore_agent_event event,
-					  int (*cb) (void *), void *data);
+					  int (*cb) (void *, void *), void *data);
 
 #ifdef __cplusplus
 }
