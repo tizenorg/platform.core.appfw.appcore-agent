@@ -27,7 +27,7 @@
 #include <stdlib.h>
 #include <sys/types.h>
 #include <unistd.h>
-#include <glib.h>
+#include <Ecore.h>
 
 #include <sysman.h>
 #include "aul.h"
@@ -153,14 +153,14 @@ static struct agent_priv priv;
 
 struct agent_ops {
 	void *data;
-	void (*cb_app)(int, void *, bundle *);
+	void (*cb_app)(enum agent_event, void *, bundle *);
 };
 
 /**
  * Appcore system event operation
  */
 struct sys_op {
-	int (*func) (void *);
+	int (*func) (void *, void *);
 	void *data;
 };
 
@@ -173,7 +173,6 @@ struct agent_appcore {
 
 static struct agent_appcore core;
 
-GMainLoop *mainloop;
 
 extern int service_create_request(bundle *data, service_h *service);
 static int __sys_lowmem_post(void *data, void *evt);
@@ -195,6 +194,12 @@ static struct evt_ops evtops[] = {
 	 }
 };
 
+
+static void __exit_loop(void *data)
+{
+	ecore_main_loop_quit();
+}
+
 static void __do_app(enum agent_event event, void *data, bundle * b)
 {
 	int r = 0;
@@ -205,7 +210,7 @@ static void __do_app(enum agent_event event, void *data, bundle * b)
 
 	if (event == AGE_TERMINATE) {
 		svc->state = AGS_DYING;
-		g_main_loop_quit(mainloop);
+		ecore_main_loop_thread_safe_call_sync((Ecore_Data_Cb)__exit_loop, NULL);
 		return;
 	}
 
@@ -278,7 +283,7 @@ static int __agent_terminate(void *data)
 	return 0;
 }
 
-static int __sys_do_default(struct appcore *ac, enum sys_event event)
+static int __sys_do_default(struct agent_appcore *ac, enum sys_event event)
 {
 	int r;
 
@@ -295,7 +300,7 @@ static int __sys_do_default(struct appcore *ac, enum sys_event event)
 	return r;
 }
 
-static int __sys_do(struct agent_appcore *ac, enum sys_event event)
+static int __sys_do(struct agent_appcore *ac, void *event_info, enum sys_event event)
 {
 	struct sys_op *op;
 
@@ -306,7 +311,7 @@ static int __sys_do(struct agent_appcore *ac, enum sys_event event)
 	if (op->func == NULL)
 		return __sys_do_default(ac, event);
 
-	return op->func(op->data);
+	return op->func(event_info, op->data);
 }
 
 static int __sys_lowmem_post(void *data, void *evt)
@@ -322,7 +327,15 @@ static int __sys_lowmem_post(void *data, void *evt)
 
 static int __sys_lowmem(void *data, void *evt)
 {
-	return __sys_do(data, SE_LOWMEM);
+	keynode_t *key = evt;
+	int val;
+
+	val = vconf_keynode_get_int(key);
+
+	if (val >= VCONFKEY_SYSMAN_LOW_MEMORY_SOFT_WARNING)
+		return __sys_do(data, (void *)&val, SE_LOWMEM);
+
+	return 0;
 }
 
 static int __sys_lowbatt(void *data, void *evt)
@@ -334,7 +347,7 @@ static int __sys_lowbatt(void *data, void *evt)
 
 	/* VCONFKEY_SYSMAN_BAT_CRITICAL_LOW or VCONFKEY_SYSMAN_POWER_OFF */
 	if (val <= VCONFKEY_SYSMAN_BAT_CRITICAL_LOW)
-		return __sys_do(data, SE_LOWBAT);
+		return __sys_do(data, (void *)&val, SE_LOWBAT);
 
 	return 0;
 }
@@ -447,7 +460,7 @@ static int __aul_handler(aul_type type, bundle *b, void *data)
 }
 
 EXPORT_API int appcore_agent_set_event_callback(enum appcore_agent_event event,
-					  int (*cb) (void *), void *data)
+					  int (*cb) (void *, void *), void *data)
 {
 	struct agent_appcore *ac = &core;
 	struct sys_op *op;
@@ -517,12 +530,12 @@ static int __before_loop(struct agent_priv *agent, int argc, char **argv)
 {
 	int r;
 
-	if (argc == NULL || argv == NULL) {
+	if (argc <= 0 || argv == NULL) {
 		errno = EINVAL;
 		return -1;
 	}
 
-	g_type_init();
+	ecore_init();
 
 	r = appcore_agent_init(&s_ops, argc, argv);
 	_retv_if(r == -1, -1);
@@ -546,12 +559,13 @@ static void __after_loop(struct agent_priv *agent)
 	priv.state = AGS_DYING;
 	if (agent->ops && agent->ops->terminate)
 		agent->ops->terminate(agent->ops->data);
+	ecore_shutdown();
 }
 
 
 EXPORT_API int appcore_agent_terminate()
 {
-	g_main_loop_quit(mainloop);
+	ecore_main_loop_thread_safe_call_sync((Ecore_Data_Cb)__exit_loop, NULL);
 	return 0;
 }
 
@@ -570,10 +584,9 @@ EXPORT_API int appcore_agent_main(int argc, char **argv,
 		return -1;
 	}
 
-	mainloop = g_main_loop_new(NULL, FALSE);
+	ecore_main_loop_begin();
 
-	g_main_loop_run(mainloop);
-
+	aul_status_update(STATUS_DYING);
 
 	__after_loop(&priv);
 

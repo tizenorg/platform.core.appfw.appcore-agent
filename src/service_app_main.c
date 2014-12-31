@@ -26,6 +26,8 @@
 #include <bundle.h>
 #include <aul.h>
 #include <dlog.h>
+#include <vconf-internal-keys.h>
+#include <Eina.h>
 
 #include <appcore-agent.h>
 #include <service_app_private.h>
@@ -35,6 +37,19 @@
 #endif
 
 #define LOG_TAG "TIZEN_N_AGENT"
+#define SERVICE_APP_EVENT_MAX 2
+
+struct app_event_handler {
+	app_event_type_e type;
+	app_event_cb cb;
+	void *data;
+};
+
+struct app_event_info {
+	app_event_type_e type;
+	void *value;
+};
+
 
 typedef enum {
 	SERVICE_APP_STATE_NOT_RUNNING, // The application has been launched or was running but was terminated
@@ -46,7 +61,7 @@ typedef struct {
 	char *package;
 	char *service_app_name;
 	service_app_state_e state;
-	service_app_event_callback_s *callback;
+	service_app_lifecycle_callback_s *callback;
 	void *data;
 } service_app_context_s;
 
@@ -55,14 +70,29 @@ typedef service_app_context_s *service_app_context_h;
 static int service_app_create(void *data);
 static int service_app_terminate(void *data);
 static int service_app_reset(service_h service, void *data);
-static int service_app_low_memory(void *data);
-static int service_app_low_battery(void *data);
+static int service_app_low_memory(void *event_info, void *data);
+static int service_app_low_battery(void *event_info, void *data);
 
 static void service_app_set_appcore_event_cb(service_app_context_h service_app_context);
 static void service_app_unset_appcore_event_cb(void);
 
+static Eina_List *handler_list[SERVICE_APP_EVENT_MAX] = {NULL, };
+static int _initialized = 0;
 
-EXPORT_API int service_app_main(int argc, char **argv, service_app_event_callback_s *callback, void *user_data)
+static void _free_handler_list(void)
+{
+	int i;
+	app_event_handler_h handler;
+
+	for (i = 0; i < SERVICE_APP_EVENT_MAX; i++) {
+		EINA_LIST_FREE(handler_list[i], handler)
+			free(handler);
+	}
+
+	eina_shutdown();
+}
+
+EXPORT_API int service_app_main(int argc, char **argv, service_app_lifecycle_callback_s *callback, void *user_data)
 {
 	service_app_context_s service_app_context = {
 		.state = SERVICE_APP_STATE_NOT_RUNNING,
@@ -77,7 +107,7 @@ EXPORT_API int service_app_main(int argc, char **argv, service_app_event_callbac
 		.service = service_app_reset,
 	};
 
-	if (argc == NULL || argv == NULL || callback == NULL)
+	if (argc <= 0 || argv == NULL || callback == NULL)
 	{
 		return service_app_error(SERVICE_APP_ERROR_INVALID_PARAMETER, __FUNCTION__, NULL);
 	}
@@ -105,12 +135,75 @@ EXPORT_API void service_app_exit(void)
 	appcore_agent_terminate();
 }
 
+EXPORT_API int service_app_add_event_handler(app_event_handler_h *event_handler, app_event_type_e event_type, app_event_cb callback, void *user_data)
+{
+	app_event_handler_h handler;
+	Eina_List *l_itr;
+
+	if (!_initialized) {
+		eina_init();
+		_initialized = 1;
+	}
+
+	if (event_handler == NULL || callback == NULL)
+		return service_app_error(APP_ERROR_INVALID_PARAMETER, __FUNCTION__, NULL);
+
+	if (event_type < APP_EVENT_LOW_MEMORY || event_type > APP_EVENT_LOW_BATTERY)
+		return service_app_error(APP_ERROR_INVALID_PARAMETER, __FUNCTION__, NULL);
+
+	EINA_LIST_FOREACH(handler_list[event_type], l_itr, handler) {
+		if (handler->cb == callback)
+			return service_app_error(APP_ERROR_INVALID_PARAMETER, __FUNCTION__, NULL);
+	}
+
+	handler = calloc(1, sizeof(struct app_event_handler));
+	if (!handler)
+		return service_app_error(APP_ERROR_OUT_OF_MEMORY, __FUNCTION__, NULL);
+
+	handler->type = event_type;
+	handler->cb = callback;
+	handler->data = user_data;
+	handler_list[event_type] = eina_list_append(handler_list[event_type], handler);
+
+	*event_handler = handler;
+
+	return APP_ERROR_NONE;
+}
+
+EXPORT_API int service_app_remove_event_handler(app_event_handler_h event_handler)
+{
+	app_event_handler_h handler;
+	app_event_type_e type;
+	Eina_List *l_itr;
+	Eina_List *l_next;
+
+	if (event_handler == NULL)
+		return service_app_error(APP_ERROR_INVALID_PARAMETER, __FUNCTION__, NULL);
+
+	if (!_initialized) {
+		LOGI("handler list is not initialzed");
+		return APP_ERROR_NONE;
+	}
+
+	type = event_handler->type;
+	if (type < APP_EVENT_LOW_MEMORY || type > APP_EVENT_LOW_BATTERY)
+		return service_app_error(APP_ERROR_INVALID_PARAMETER, __FUNCTION__, NULL);
+
+	EINA_LIST_FOREACH_SAFE(handler_list[type], l_itr, l_next, handler) {
+		if (handler == event_handler) {
+			free(handler);
+			handler_list[type] = eina_list_remove_list(handler_list[type], l_itr);
+			return APP_ERROR_NONE;
+		}
+	}
+
+	return service_app_error(APP_ERROR_INVALID_PARAMETER, __FUNCTION__, "cannot find such handler");
+}
 
 int service_app_create(void *data)
 {
 	service_app_context_h service_app_context = data;
 	service_app_create_cb create_cb;
-	char locale_dir[TIZEN_PATH_MAX] = {0, };
 
 	if (service_app_context == NULL)
 	{
@@ -150,6 +243,9 @@ int service_app_terminate(void *data)
 
 	service_app_unset_appcore_event_cb();
 
+	if (_initialized)
+		_free_handler_list();
+
 	return SERVICE_APP_ERROR_NONE;
 }
 
@@ -175,61 +271,50 @@ int service_app_reset(service_h service, void *data)
 }
 
 
-int service_app_low_memory(void *data)
+int service_app_low_memory(void *event_info, void *data)
 {
-	service_app_context_h service_app_context = data;
-	service_app_low_memory_cb low_memory_cb;
+	Eina_List *l;
+	app_event_handler_h handler;
+	struct app_event_info event;
 
-	if (service_app_context == NULL)
-	{
-		return service_app_error(SERVICE_APP_ERROR_INVALID_CONTEXT, __FUNCTION__, NULL);
+	LOGI("service_app_low_memory");
+
+	event.type = APP_EVENT_LOW_MEMORY;
+	event.value = event_info;
+
+	EINA_LIST_FOREACH(handler_list[APP_EVENT_LOW_MEMORY], l, handler) {
+		handler->cb(&event, handler->data);
 	}
 
-	low_memory_cb = service_app_context->callback->low_memory;
-
-	if (low_memory_cb != NULL)
-	{
-		low_memory_cb(service_app_context->data);
-	}
-
-	return SERVICE_APP_ERROR_NONE;
+	return APP_ERROR_NONE;
 }
 
-int service_app_low_battery(void *data)
+int service_app_low_battery(void *event_info, void *data)
 {
-	service_app_context_h service_app_context = data;
-	service_app_low_battery_cb low_battery_cb;
+	Eina_List *l;
+	app_event_handler_h handler;
+	struct app_event_info event;
 
-	if (service_app_context == NULL)
-	{
-		return service_app_error(SERVICE_APP_ERROR_INVALID_CONTEXT, __FUNCTION__, NULL);
+	LOGI("service_app_low_battery");
+
+	event.type = APP_EVENT_LOW_BATTERY;
+	event.value = event_info;
+
+	EINA_LIST_FOREACH(handler_list[APP_EVENT_LOW_BATTERY], l, handler) {
+		handler->cb(&event, handler->data);
 	}
 
-	low_battery_cb = service_app_context->callback->low_battery;
-
-	if (low_battery_cb != NULL)
-	{
-		low_battery_cb(service_app_context->data);
-	}
-
-	return SERVICE_APP_ERROR_NONE;
+	return APP_ERROR_NONE;
 }
 
 void service_app_set_appcore_event_cb(service_app_context_h service_app_context)
 {
-	if (service_app_context->callback->low_memory != NULL)
-	{
-		//appcore_set_event_callback(APPCORE_EVENT_LOW_MEMORY, service_app_appcore_low_memory, service_app_context);
-	}
-
-	if (service_app_context->callback->low_battery != NULL)
-	{
-		//appcore_set_event_callback(APPCORE_EVENT_LOW_BATTERY, service_app_appcore_low_battery, service_app_context);
-	}
+	appcore_agent_set_event_callback(APPCORE_AGENT_EVENT_LOW_MEMORY, service_app_low_memory, service_app_context);
+	appcore_agent_set_event_callback(APPCORE_AGENT_EVENT_LOW_BATTERY, service_app_low_battery, service_app_context);
 }
 
 void service_app_unset_appcore_event_cb(void)
 {
-	//appcore_set_event_callback(APPCORE_EVENT_LOW_MEMORY, NULL, NULL);
-	//appcore_set_event_callback(APPCORE_EVENT_LOW_BATTERY, NULL, NULL);
+	appcore_agent_set_event_callback(APPCORE_AGENT_EVENT_LOW_MEMORY, NULL, NULL);
+	appcore_agent_set_event_callback(APPCORE_AGENT_EVENT_LOW_BATTERY, NULL, NULL);
 }

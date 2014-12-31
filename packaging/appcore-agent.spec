@@ -11,10 +11,11 @@ BuildRequires:  sysman-devel
 BuildRequires:  pkgconfig(aul)
 BuildRequires:  pkgconfig(capi-appfw-application)
 BuildRequires:  pkgconfig(dlog)
-BuildRequires:  pkgconfig(glib-2.0)
+BuildRequires:  pkgconfig(ecore)
 BuildRequires:  pkgconfig(pmapi)
 BuildRequires:  pkgconfig(sysman)
 BuildRequires:  pkgconfig(vconf)
+BuildRequires:  pkgconfig(vconf-internal-keys)
 
 %description
 SLP agent application basic

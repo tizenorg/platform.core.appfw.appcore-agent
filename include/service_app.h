@@ -20,6 +20,7 @@
 
 #include <tizen.h>
 #include <app_service.h>
+#include <app.h>
 
 
 #ifdef __cplusplus
@@ -101,55 +102,85 @@ typedef void (*service_app_low_battery_cb) (void *user_data);
 
 
 /**
- * @brief The structure type to contain the set of callback functions for handling application events.
+ * @brief The structure type containing the set of callback functions for handling application events.
  * @details It is one of the input parameters of the service_app_efl_main() function.
  *
  * @see service_app_main()
  * @see service_app_create_cb()
  * @see service_app_terminate_cb()
  * @see service_app_service_cb()
- * @see service_app_low_memory_cb()
- * @see service_app_low_battery_cb()
  */
 typedef struct
 {
 	service_app_create_cb create; /**< This callback function is called at the start of the application. */
-	service_app_terminate_cb terminate; /**< This callback function is called once after the main loop of application exits. */
-	service_app_service_cb service; /**< This callback function is called when other application send the launch request to the application. */
-	service_app_low_memory_cb low_memory; /**< The registered callback function is called when the system runs low on memory. */
-	service_app_low_battery_cb low_battery; /**< The registered callback function is called when battery is low. */
-} service_app_event_callback_s;
+	service_app_terminate_cb terminate; /**< This callback function is called once after the main loop of the application exits. */
+	service_app_service_cb service; /**< This callback function is called when another application sends the launch request to the application. */
+} service_app_lifecycle_callback_s;
 
 
 /**
- * @brief Runs the main loop of application until service_app_exit() is called
+ * @brief Adds the system event handler
  *
- * @param [in] argc The argument count
- * @param [in] argv The argument vector
- * @param [in] callback The set of callback functions to handle application events
- * @param [in] user_data The user data to be passed to the callback functions
+ * @param[out] handler The event handler
+ * @param[in] event_type The system event type
+ * @param[in] callback The callback function
+ * @param[in] user_data The user data to be passed to the callback function
  *
- * @return 0 on success, otherwise a negative error value.
- * @retval #SERVICE_APP_ERROR_NONE Successful
- * @retval #SERVICE_APP_ERROR_INVALID_PARAMETER Invalid parameter
- * @retval #SERVICE_APP_ERROR_INVALID_CONTEXT The application is illegally launched, not launched by the launch system.
- * @retval #SERVICE_APP_ERROR_ALREADY_RUNNING The main loop already starts
+ * @return 0 on success, otherwise a negative error value
+ * @retval #APP_ERROR_NONE Successfull
+ * @retval #APP_ERROR_INVALID_PARAMETER Invalid parameter
+ * @retval #APP_ERROR_OUT_OF_MEMORY Out of memory
+ *
+ * @see app_event_type_e
+ * @see app_event_cb
+ * @see service_app_remove_event_handler
+ */
+int service_app_add_event_handler(app_event_handler_h *handler, app_event_type_e event_type, app_event_cb callback, void *user_data);
+
+
+/**
+ * @brief Removes registered event handler
+ *
+ * @param[in] event_handler The event handler
+ *
+ * @return 0 on success, otherwise a negative error value
+ * @retval #APP_ERROR_NONE Successfull
+ * @retval #APP_ERROR_INVALID_PARAMETER Invalid parameter
+ *
+ * @see service_app_add_event_handler
+ */
+int service_app_remove_event_handler(app_event_handler_h event_handler);
+
+
+/**
+ * @brief Runs the main loop of the application until service_app_exit() is called.
+ *
+ * @param[in] argc The argument count
+ * @param[in] argv The argument vector
+ * @param[in] callback The set of callback functions to handle application events
+ * @param[in] user_data The user data to be passed to the callback functions
+ *
+ * @return @c 0 on success,
+ *         otherwise a negative error value.
+ * @retval #APP_ERROR_NONE Successful
+ * @retval #APP_ERROR_INVALID_PARAMETER Invalid parameter
+ * @retval #APP_ERROR_INVALID_CONTEXT The application is illegally launched, not launched by the launch system.
+ * @retval #APP_ERROR_ALREADY_RUNNING The main loop has already started
  *
  * @see service_app_create_cb()
  * @see service_app_terminate_cb()
  * @see service_app_service_cb()
- * @see service_app_low_memory_cb()
- * @see service_app_low_battery_cb()
  * @see service_app_exit()
- * @see #service_app_event_callback_s
+ * @see #service_app_lifecycle_callback_s
  */
-int service_app_main(int argc, char **argv, service_app_event_callback_s *callback, void *user_data);
+int service_app_main(int argc, char **argv, service_app_lifecycle_callback_s *callback, void *user_data);
 
 
 /**
- * @brief Exits the main loop of application.
+ * @brief Exits the main loop of the application.
  *
- * @details The main loop of application stops and service_app_terminate_cb() is invoked
+ * @details The main loop of the application stops and service_app_terminate_cb() is invoked.
+ *
  * @see service_app_main()
  * @see service_app_terminate_cb()
  */
