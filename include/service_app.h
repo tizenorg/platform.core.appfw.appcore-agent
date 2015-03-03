@@ -19,7 +19,7 @@
 #define __TIZEN_APPFW_SERVICE_APP_H__
 
 #include <tizen.h>
-#include <app_service.h>
+#include <app_control.h>
 #include <app.h>
 
 
@@ -72,13 +72,13 @@ typedef void (*service_app_terminate_cb) (void *user_data);
 /**
  * @brief Called when other application send the launch request to the agent application.
  *
- * @param[in]	service	The handle to the service
+ * @param[in]	app_control	The handle to the app_control
  * @param[in]	user_data	The user data passed from the callback registration function
  * @see service_app_main()
  * @see #service_app_event_callback_s
  * @see @ref CAPI_SERVICE_MODULE API
  */
-typedef void (*service_app_service_cb) (service_h service, void *user_data);
+typedef void (*service_app_control_cb) (app_control_h app_control, void *user_data);
 
 
 /**
@@ -108,13 +108,13 @@ typedef void (*service_app_low_battery_cb) (void *user_data);
  * @see service_app_main()
  * @see service_app_create_cb()
  * @see service_app_terminate_cb()
- * @see service_app_service_cb()
+ * @see service_app_control_cb()
  */
 typedef struct
 {
 	service_app_create_cb create; /**< This callback function is called at the start of the application. */
 	service_app_terminate_cb terminate; /**< This callback function is called once after the main loop of the application exits. */
-	service_app_service_cb service; /**< This callback function is called when another application sends the launch request to the application. */
+	service_app_control_cb app_control; /**< This callback function is called when another application sends the launch request to the application. */
 } service_app_lifecycle_callback_s;
 
 
@@ -169,7 +169,7 @@ int service_app_remove_event_handler(app_event_handler_h event_handler);
  *
  * @see service_app_create_cb()
  * @see service_app_terminate_cb()
- * @see service_app_service_cb()
+ * @see service_app_control_cb()
  * @see service_app_exit()
  * @see #service_app_lifecycle_callback_s
  */
