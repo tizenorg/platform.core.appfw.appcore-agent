@@ -32,6 +32,7 @@
 #include <sysman.h>
 #include "aul.h"
 #include "appcore-agent.h"
+#include <app_control_internal.h>
 #include <dlog.h>
 #include <vconf.h>
 
@@ -174,7 +175,6 @@ struct agent_appcore {
 static struct agent_appcore core;
 
 
-extern int service_create_request(bundle *data, service_h *service);
 static int __sys_lowmem_post(void *data, void *evt);
 static int __sys_lowmem(void *data, void *evt);
 static int __sys_lowbatt(void *data, void *evt);
@@ -204,7 +204,7 @@ static void __do_app(enum agent_event event, void *data, bundle * b)
 {
 	int r = 0;
 	struct agent_priv *svc = data;
-	service_h service = NULL;
+	app_control_h app_control = NULL;
 
 	_ret_if(svc == NULL);
 
@@ -216,15 +216,15 @@ static void __do_app(enum agent_event event, void *data, bundle * b)
 
 	_ret_if(svc->ops == NULL);
 
-	if (service_create_event(b, &service) != 0)
+	if (app_control_create_event(b, &app_control) != 0)
 	{
 		return;
 	}
 
 	switch (event) {
 	case AGE_REQUEST:
-		if (svc->ops->service)
-			r = svc->ops->service(service, svc->ops->data);
+		if (svc->ops->app_control)
+			r = svc->ops->app_control(app_control, svc->ops->data);
 		svc->state = AGS_RUNNING;
 		break;
 /*	case AGE_STOP:
@@ -238,7 +238,7 @@ static void __do_app(enum agent_event event, void *data, bundle * b)
 		/* do nothing */
 		break;
 	}
-	service_destroy(service);
+	app_control_destroy(app_control);
 }
 
 static struct agent_ops s_ops = {

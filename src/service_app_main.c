@@ -68,7 +68,7 @@ typedef service_app_context_s *service_app_context_h;
 
 static int service_app_create(void *data);
 static int service_app_terminate(void *data);
-static int service_app_reset(service_h service, void *data);
+static int service_app_reset(app_control_h app_control, void *data);
 static int service_app_low_memory(void *event_info, void *data);
 static int service_app_low_battery(void *event_info, void *data);
 
@@ -103,7 +103,7 @@ EXPORT_API int service_app_main(int argc, char **argv, service_app_lifecycle_cal
 		.data = &service_app_context,
 		.create = service_app_create,
 		.terminate = service_app_terminate,
-		.service = service_app_reset,
+		.app_control = service_app_reset,
 	};
 
 	if (argc <= 0 || argv == NULL || callback == NULL)
@@ -249,21 +249,21 @@ int service_app_terminate(void *data)
 }
 
 
-int service_app_reset(service_h service, void *data)
+int service_app_reset(app_control_h app_control, void *data)
 {
 	service_app_context_h service_app_context = data;
-	service_app_service_cb service_cb;
+	service_app_control_cb app_control_cb;
 
 	if (service_app_context == NULL)
 	{
 		return service_app_error(SERVICE_APP_ERROR_INVALID_CONTEXT, __FUNCTION__, NULL);
 	}
 
-	service_cb = service_app_context->callback->service;
+	app_control_cb = service_app_context->callback->app_control;
 
-	if (service_cb != NULL)
+	if (app_control_cb != NULL)
 	{
-		service_cb(service, service_app_context->data);
+		app_control_cb(app_control, service_app_context->data);
 	}
 
 	return SERVICE_APP_ERROR_NONE;
