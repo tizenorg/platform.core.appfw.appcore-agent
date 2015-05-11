@@ -24,7 +24,14 @@ Summary:        Applocation Core Agent
 Group:          Application Framework/Development
 Requires:       %{name} = %{version}
 %description devel
-%devel_desc
+appcore agent (developement files)
+
+%package -n capi-appfw-service-application-devel
+Summary:    service appliation
+Group:      Development/Libraries
+Requires:    appcore-agent-devel = %{version}-%{release}
+%description -n capi-appfw-service-application-devel
+service application (developement files)
 
 %prep
 %setup -q
@@ -52,6 +59,12 @@ cp %{SOURCE1001} .
 %manifest %{name}.manifest
 %defattr(-,root,root,-)
 %{_libdir}/pkgconfig/appcore-agent.pc
+%{_libdir}/libappcore-agent.so
+%{_includedir}/appcore-agent/appcore-agent.h
+%{_includedir}/appcore-agent/service_app.h
+
+%files -n capi-appfw-service-application-devel
+%{_libdir}/pkgconfig/capi-appfw-service-application.pc
 %{_libdir}/libappcore-agent.so
 %{_includedir}/appcore-agent/appcore-agent.h
 %{_includedir}/appcore-agent/service_app.h

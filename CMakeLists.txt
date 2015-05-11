@@ -46,6 +46,10 @@ CONFIGURE_FILE(${APPCORE_AGENT}.pc.in ${APPCORE_AGENT}.pc @ONLY)
 
 INSTALL(TARGETS ${APPCORE_AGENT} DESTINATION ${LIB_INSTALL_DIR} COMPONENT RuntimeLibraries)
 INSTALL(FILES ${CMAKE_CURRENT_BINARY_DIR}/${APPCORE_AGENT}.pc DESTINATION ${LIB_INSTALL_DIR}/pkgconfig)
+
+CONFIGURE_FILE(capi-appfw-service-application.pc.in capi-appfw-service-application.pc @ONLY)
+INSTALL(FILES ${CMAKE_CURRENT_BINARY_DIR}/capi-appfw-service-application.pc DESTINATION ${LIB_INSTALL_DIR}/pkgconfig)
+
 FOREACH(hfile ${HEADERS_agent})
 	INSTALL(FILES ${CMAKE_CURRENT_SOURCE_DIR}/include/${hfile} DESTINATION include/appcore-agent)
 ENDFOREACH(hfile)
