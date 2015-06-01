@@ -15,22 +15,38 @@
  */
 
 
-#ifndef __TIZEN_APPFW_SERVICE_APP_PRIVATE_H__
-#define __TIZEN_APPFW_SERVICE_APP_PRIVATE_H__
-
-#include <appcore-agent.h>
-#include <service_app.h>
+#ifndef __TIZEN_APPFW_SERVICE_APP_EXTENSION_H__
+#define __TIZEN_APPFW_SERVICE_APP_EXTENSION_H__
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
-#define TIZEN_PATH_MAX 1024
+/**
+ * @addtogroup CAPI_SERVICE_APP_MODULE
+ * @{
+ */
 
-int service_app_error(service_app_error_e error, const char* function, const char *description);
+/**
+ * @brief Exits the main loop of the application without restart.
+ *
+ * @details The main loop of the application stops, service_app_terminate_cb() is invoked, and the a
+ * pplication is not restarted.
+ *
+ * @since_tizen @if MOBILE 2.3 @elseif WEARABLE 2.3.1 @endif
+ *
+ * @see service_app_main()
+ * @see service_app_exit()
+ * @see service_app_terminate_cb()
+ */
+void service_app_exit_without_restart(void);
+
+/**
+ * @}
+ */
 
 #ifdef __cplusplus
 }
 #endif
 
-#endif /* __TIZEN_APPFW_SERVICE_APP_PRIVATE_H__ */
+#endif /* __TIZEN_APPFW_SERVICE_APP_EXTENSION_H__ */

@@ -20,90 +20,64 @@
 
 #include <tizen.h>
 #include <app_control.h>
-#include <app.h>
-
+#include <app_common.h>
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
 /**
- * @addtogroup CAPI_APPLICATION_MODULE
+ * @addtogroup CAPI_SERVICE_APP_MODULE
  * @{
  */
 
 
 /**
- * @brief Enumerations of error code for Application.
- */
-typedef enum
-{
-	SERVICE_APP_ERROR_NONE = TIZEN_ERROR_NONE, /**< Successful */
-	SERVICE_APP_ERROR_INVALID_PARAMETER = TIZEN_ERROR_INVALID_PARAMETER, /**< Invalid parameter */
-	SERVICE_APP_ERROR_OUT_OF_MEMORY = TIZEN_ERROR_OUT_OF_MEMORY, /**< Out of memory */
-	SERVICE_APP_ERROR_INVALID_CONTEXT = TIZEN_ERROR_NOT_PERMITTED, /**< Invalid application context */
-	SERVICE_APP_ERROR_NO_SUCH_FILE = TIZEN_ERROR_NO_SUCH_FILE, /**< No such file or directory */
-	SERVICE_APP_ERROR_ALREADY_RUNNING = TIZEN_ERROR_ALREADY_IN_PROGRESS, /**< Application is already running */
-} service_app_error_e;
-
-
-/**
  * @brief Called at the start of the agent application.
  *
- * @param[in]	user_data	The user data passed from the callback registration function
- * @return @c true on success, otherwise @c false
+ * @since_tizen @if MOBILE 2.3 @elseif WEARABLE 2.3.1 @endif
+ *
+ * @param[in] user_data	The user data passed from the callback registration function
+ * @return @c true on success,
+ *         otherwise @c false
  * @pre	service_app_main() will invoke this callback function.
  * @see service_app_main()
- * @see #service_app_event_callback_s
+ * @see #service_app_lifecycle_callback_s
  */
 typedef bool (*service_app_create_cb) (void *user_data);
 
 
 /**
- * @brief   Called once after the main loop of agent application exits.
+ * @brief Called once after the main loop of the agent application exits.
  *
- * @param[in]	user_data	The user data passed from the callback registration function
+ * @since_tizen @if MOBILE 2.3 @elseif WEARABLE 2.3.1 @endif
+ *
+ * @param[in] user_data	The user data passed from the callback registration function
  * @see	service_app_main()
- * @see #service_app_event_callback_s
+ * @see #service_app_lifecycle_callback_s
  */
 typedef void (*service_app_terminate_cb) (void *user_data);
 
 
 /**
- * @brief Called when other application send the launch request to the agent application.
+ * @brief Called when another application sends the launch request to the agent application.
  *
- * @param[in]	app_control	The handle to the app_control
- * @param[in]	user_data	The user data passed from the callback registration function
+ * @since_tizen @if MOBILE 2.3 @elseif WEARABLE 2.3.1 @endif
+ *
+ * @param[in] app_control The handle to the app_control
+ * @param[in] user_data The user data passed from the callback registration function
  * @see service_app_main()
- * @see #service_app_event_callback_s
- * @see @ref CAPI_SERVICE_MODULE API
+ * @see #service_app_lifecycle_callback_s
+ * @see @ref CAPI_APP_CONTROL_MODULE API
  */
 typedef void (*service_app_control_cb) (app_control_h app_control, void *user_data);
 
 
 /**
- * @brief   Called when the system memory is running low.
- *
- * @param[in]	user_data	The user data passed from the callback registration function
- * @see	service_app_main()
- * @see #service_app_event_callback_s
- */
-typedef void (*service_app_low_memory_cb) (void *user_data);
-
-
-/**
- * @brief   Called when the battery power is running low.
- *
- * @param[in]	user_data	The user data passed from the callback registration function
- * @see	service_app_main()
- * @see #service_app_event_callback_s
- */
-typedef void (*service_app_low_battery_cb) (void *user_data);
-
-
-/**
  * @brief The structure type containing the set of callback functions for handling application events.
  * @details It is one of the input parameters of the service_app_efl_main() function.
+ *
+ * @since_tizen @if MOBILE 2.3 @elseif WEARABLE 2.3.1 @endif
  *
  * @see service_app_main()
  * @see service_app_create_cb()
@@ -121,6 +95,8 @@ typedef struct
 /**
  * @brief Adds the system event handler
  *
+ * @since_tizen @if MOBILE 2.3 @elseif WEARABLE 2.3.1 @endif
+ * @remarks The service application can handle low memory event, low battery event, language setting changed event and region format changed event.
  * @param[out] handler The event handler
  * @param[in] event_type The system event type
  * @param[in] callback The callback function
@@ -141,6 +117,7 @@ int service_app_add_event_handler(app_event_handler_h *handler, app_event_type_e
 /**
  * @brief Removes registered event handler
  *
+ * @since_tizen @if MOBILE 2.3 @elseif WEARABLE 2.3.1 @endif
  * @param[in] event_handler The event handler
  *
  * @return 0 on success, otherwise a negative error value
@@ -154,6 +131,11 @@ int service_app_remove_event_handler(app_event_handler_h event_handler);
 
 /**
  * @brief Runs the main loop of the application until service_app_exit() is called.
+ *
+ * @details This function is the main entry point of the Tizen service application.
+ *          This main loop supports event handling for the GMainLoop and the Ecore Main Loop.
+ *
+ * @since_tizen @if MOBILE 2.3 @elseif WEARABLE 2.3.1 @endif
  *
  * @param[in] argc The argument count
  * @param[in] argv The argument vector
@@ -181,11 +163,12 @@ int service_app_main(int argc, char **argv, service_app_lifecycle_callback_s *ca
  *
  * @details The main loop of the application stops and service_app_terminate_cb() is invoked.
  *
+ * @since_tizen @if MOBILE 2.3 @elseif WEARABLE 2.3.1 @endif
+ *
  * @see service_app_main()
  * @see service_app_terminate_cb()
  */
 void service_app_exit(void);
-
 
 /**
  * @}

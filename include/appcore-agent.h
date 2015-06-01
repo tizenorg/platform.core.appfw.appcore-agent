@@ -28,7 +28,7 @@
 #include <libintl.h>
 #include <bundle.h>
 
-#include "app_control.h"
+#include <app_control_internal.h>
 
 
 #ifdef __cplusplus
@@ -48,16 +48,22 @@ struct agentcore_ops {
 
 enum appcore_agent_event {
 	APPCORE_AGENT_EVENT_UNKNOWN,
-		       /**< Unknown event */
+			/**< Unknown event */
 	APPCORE_AGENT_EVENT_LOW_MEMORY,
-			  /**< Low memory */
+			/**< Low memory */
 	APPCORE_AGENT_EVENT_LOW_BATTERY,
-			   /**< Low battery */
+			/**< Low battery */
+	APPCORE_AGENT_EVENT_LANG_CHANGE,
+			/**< Language setting is changed */
+	APPCORE_AGENT_EVENT_REGION_CHANGE,
+			/**< Region setting is changed */
 };
 
 int appcore_agent_main(int argc, char **argv, struct agentcore_ops *ops);
 
 int appcore_agent_terminate();
+
+int appcore_agent_terminate_without_restart();
 
 int appcore_agent_set_event_callback(enum appcore_agent_event event,
 					  int (*cb) (void *, void *), void *data);
