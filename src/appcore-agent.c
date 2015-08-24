@@ -782,12 +782,8 @@ EXPORT_API int appcore_agent_terminate_without_restart()
 	int ret;
 
 	__del_vconf_list();
-	ret = aul_terminate_pid_without_restart(getpid());
-	if (ret < 0) {
-		SECURE_LOGD("request failed, but it will be terminated");
-		ecore_main_loop_thread_safe_call_sync((Ecore_Data_Cb)__exit_loop, NULL);
-	}
-
+	aul_status_update(STATUS_NORESTART);
+	ecore_main_loop_thread_safe_call_sync((Ecore_Data_Cb)__exit_loop, NULL);
 	return 0;
 }
 
