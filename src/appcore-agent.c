@@ -248,7 +248,6 @@ static void __exit_loop(void *data)
 
 static void __do_app(enum agent_event event, void *data, bundle * b)
 {
-	int r = 0;
 	struct agent_priv *svc = data;
 	app_control_h app_control = NULL;
 
@@ -263,20 +262,18 @@ static void __do_app(enum agent_event event, void *data, bundle * b)
 	_ret_if(svc->ops == NULL);
 
 	if (app_control_create_event(b, &app_control) != 0)
-	{
 		return;
-	}
 
 	switch (event) {
 	case AGE_REQUEST:
 		if (svc->ops->app_control)
-			r = svc->ops->app_control(app_control, svc->ops->data);
+			svc->ops->app_control(app_control, svc->ops->data);
 		svc->state = AGS_RUNNING;
 		break;
 /*	case AGE_STOP:
 		if(svc->state == AGS_RUNNING) {
 			if (svc->ops->stop)
-				r = svc->ops->stop(svc->ops->data);
+				svc->ops->stop(svc->ops->data);
 			svc->state = AGS_STOPED;
 		}
 		break;
@@ -412,9 +409,8 @@ static int __sys_langchg_pre(void *data, void *evt)
 		r = setlocale(LC_ALL, lang);
 		if (r == NULL) {
 			r = setlocale(LC_ALL, lang);
-			if (r) {
+			if (r)
 				_DBG("*****appcore-agent setlocale=%s\n", r);
-			}
 		}
 	}
 
@@ -452,9 +448,8 @@ static int __sys_regionchg_pre(void *data, void *evt)
 		setenv("LC_IDENTIFICATION", region, 1);
 
 		r = setlocale(LC_ALL, "");
-		if (r != NULL) {
+		if (r != NULL)
 			_DBG("*****appcore-agent setlocale=%s\n", r);
-		}
 	}
 
 	return 0;
@@ -590,21 +585,19 @@ static int __del_vconf_list(void)
 
 static int __aul_handler(aul_type type, bundle *b, void *data)
 {
-	int ret;
-
 	switch (type) {
 	case AUL_START:
-		ret = __agent_request(data, b);
+		__agent_request(data, b);
 		break;
 	case AUL_RESUME:
 		break;
 /*	case AUL_STOP:
-		ret = __service_stop(data);
+		__service_stop(data);
 		break;
 */
 	case AUL_TERMINATE:
 	case AUL_TERMINATE_BGAPP:
-		ret = __agent_terminate(data);
+		__agent_terminate(data);
 		break;
 	default:
 		/* do nothing */
@@ -685,7 +678,7 @@ EXPORT_API int appcore_agent_init(const struct agent_ops *ops,
 			    int argc, char **argv)
 {
 	int r;
-	char *dirname;
+	const char *dirname;
 	char *app_name = NULL;
 	int pid;
 
@@ -712,22 +705,20 @@ EXPORT_API int appcore_agent_init(const struct agent_ops *ops,
 	_retv_if(r == -1, -1);
 
 	r = aul_launch_init(__aul_handler, &core);
-	if (r < 0) {
+	if (r < 0)
 		goto err;
-	}
 
 	r = aul_launch_argv_handler(argc, argv);
-	if (r < 0) {
+	if (r < 0)
 		goto err;
-	}
 
 	core.ops = ops;
-	core.state = 1;		/* TODO: use enum value */
+	core.state = 1; /* TODO: use enum value */
 
 	return 0;
  err:
 	__del_vconf_list();
-	//__clear(&core);
+
 	return -1;
 }
 
@@ -749,7 +740,6 @@ static int __before_loop(struct agent_priv *agent, int argc, char **argv)
 	if (agent->ops && agent->ops->create) {
 		r = agent->ops->create(agent->ops->data);
 		if (r < 0) {
-			//appcore_exit();
 			if (agent->ops && agent->ops->terminate)
 				agent->ops->terminate(agent->ops->data);
 			errno = ECANCELED;
@@ -774,16 +764,16 @@ EXPORT_API int appcore_agent_terminate()
 {
 	__del_vconf_list();
 	ecore_main_loop_thread_safe_call_sync((Ecore_Data_Cb)__exit_loop, NULL);
+
 	return 0;
 }
 
 EXPORT_API int appcore_agent_terminate_without_restart()
 {
-	int ret;
-
 	__del_vconf_list();
 	aul_status_update(STATUS_NORESTART);
 	ecore_main_loop_thread_safe_call_sync((Ecore_Data_Cb)__exit_loop, NULL);
+
 	return 0;
 }
 
@@ -796,18 +786,14 @@ EXPORT_API int appcore_agent_main(int argc, char **argv,
 	_retv_if(r == -1, -1);
 
 	r = __before_loop(&priv, argc, argv);
-	if (r == -1) {
-		//__unset_data(&priv);
+	if (r == -1)
 		return -1;
-	}
 
 	ecore_main_loop_begin();
 
 	aul_status_update(STATUS_DYING);
 
 	__after_loop(&priv);
-
-	//__unset_data(&priv);
 
 	return 0;
 }

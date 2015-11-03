@@ -16,21 +16,17 @@
 
 
 #include <stdlib.h>
-
+#include <unistd.h>
 #include <bundle.h>
 #include <aul.h>
 #include <dlog.h>
 #include <vconf-internal-keys.h>
 #include <app_common.h>
-
 #include <Eina.h>
-
 #include <appcore-agent.h>
+
 #include "service_app_private.h"
 #include "service_app_extension.h"
-
-#include <unistd.h>
-
 
 #ifdef LOG_TAG
 #undef LOG_TAG
@@ -40,13 +36,12 @@
 #define TIZEN_PATH_MAX 1024
 #endif
 
-
 #define LOG_TAG "CAPI_APPFW_APPLICATION"
 
 typedef enum {
-	SERVICE_APP_STATE_NOT_RUNNING, // The application has been launched or was running but was terminated
-	SERVICE_APP_STATE_CREATING, // The application is initializing the resources on service_app_create_cb callback
-	SERVICE_APP_STATE_RUNNING, // The application is running in the foreground and background
+	SERVICE_APP_STATE_NOT_RUNNING, /* The application has been launched or was running but was terminated */
+	SERVICE_APP_STATE_CREATING, /* The application is initializing the resources on service_app_create_cb callback */
+	SERVICE_APP_STATE_RUNNING, /* The application is running in the foreground and background */
 } service_app_state_e;
 
 static int _service_app_get_id(char **id)
@@ -55,30 +50,20 @@ static int _service_app_get_id(char **id)
 	int ret = -1;
 
 	if (id == NULL)
-	{
 		return service_app_error(APP_ERROR_INVALID_PARAMETER, __FUNCTION__, NULL);
-	}
 
-	if (id_buf[0] == '\0')
-	{
+	if (id_buf[0] == '\0') {
 		ret = aul_app_get_appid_bypid(getpid(), id_buf, sizeof(id_buf));
-
-		if (ret < 0) {
+		if (ret < 0)
 			return service_app_error(APP_ERROR_INVALID_CONTEXT, __FUNCTION__, "failed to get the application ID");
-		}
 	}
 
 	if (id_buf[0] == '\0')
-	{
 		return service_app_error(APP_ERROR_INVALID_CONTEXT, __FUNCTION__, "failed to get the application ID");
-	}
 
 	*id = strdup(id_buf);
-
 	if (*id == NULL)
-	{
 		return service_app_error(APP_ERROR_OUT_OF_MEMORY, __FUNCTION__, NULL);
-	}
 
 	return APP_ERROR_NONE;
 }
@@ -88,26 +73,18 @@ static int _service_appget_package_app_name(const char *appid, char **name)
 	char *name_token = NULL;
 
 	if (appid == NULL)
-	{
 		return service_app_error(APP_ERROR_INVALID_PARAMETER, __FUNCTION__, NULL);
-	}
 
-	// com.vendor.name -> name
+	/* com.vendor.name -> name */
 	name_token = strrchr(appid, '.');
-
 	if (name_token == NULL)
-	{
 		return service_app_error(APP_ERROR_INVALID_CONTEXT, __FUNCTION__, NULL);
-	}
 
 	name_token++;
 
 	*name = strdup(name_token);
-
 	if (*name == NULL)
-	{
 		return service_app_error(APP_ERROR_OUT_OF_MEMORY, __FUNCTION__, NULL);
-	}
 
 	return APP_ERROR_NONE;
 }
@@ -297,19 +274,14 @@ static int _service_app_create(void *data)
 	service_app_create_cb create_cb;
 
 	if (app_context == NULL)
-	{
 		return service_app_error(APP_ERROR_INVALID_CONTEXT, __FUNCTION__, NULL);
-	}
 
 	appcore_agent_initialized = 1;
 	_service_app_set_appcore_event_cb();
 
 	create_cb = app_context->callback->create;
-
 	if (create_cb == NULL || create_cb(app_context->data) == false)
-	{
 		return service_app_error(APP_ERROR_INVALID_CONTEXT, __FUNCTION__, "service_app_create_cb() returns false");
-	}
 
 	app_context->state = SERVICE_APP_STATE_RUNNING;
 
@@ -322,16 +294,11 @@ static int _service_app_terminate(void *data)
 	service_app_terminate_cb terminate_cb;
 
 	if (app_context == NULL)
-	{
 		return service_app_error(APP_ERROR_INVALID_CONTEXT, __FUNCTION__, NULL);
-	}
 
 	terminate_cb = app_context->callback->terminate;
-
 	if (terminate_cb != NULL)
-	{
 		terminate_cb(app_context->data);
-	}
 
 	_service_app_unset_appcore_event_cb();
 
@@ -347,16 +314,11 @@ static int _service_app_reset(app_control_h app_control, void *data)
 	service_app_control_cb service_cb;
 
 	if (app_context == NULL)
-	{
 		return service_app_error(APP_ERROR_INVALID_CONTEXT, __FUNCTION__, NULL);
-	}
 
 	service_cb = app_context->callback->app_control;
-
 	if (service_cb != NULL)
-	{
 		service_cb(app_control, app_context->data);
-	}
 
 	return APP_ERROR_NONE;
 }
@@ -377,26 +339,18 @@ EXPORT_API int service_app_main(int argc, char **argv, service_app_lifecycle_cal
 	};
 
 	if (argc <= 0 || argv == NULL || callback == NULL)
-	{
 		return service_app_error(APP_ERROR_INVALID_PARAMETER, __FUNCTION__, NULL);
-	}
 
 	if (callback->create == NULL)
-	{
 		return service_app_error(APP_ERROR_INVALID_PARAMETER, __FUNCTION__, "service_app_create_cb() callback must be registered");
-	}
 
 	if (app_context.state != SERVICE_APP_STATE_NOT_RUNNING)
-	{
 		return service_app_error(APP_ERROR_ALREADY_RUNNING, __FUNCTION__, NULL);
-	}
 
-
-	if (_service_app_get_id(&(app_context.package)) == APP_ERROR_NONE)
-	{
-		if (_service_appget_package_app_name(app_context.package, &(app_context.service_app_name)) != APP_ERROR_NONE)
-		{
+	if (_service_app_get_id(&(app_context.package)) == APP_ERROR_NONE) {
+		if (_service_appget_package_app_name(app_context.package, &(app_context.service_app_name)) != APP_ERROR_NONE) {
 			free(app_context.package);
+			app_context.package = NULL;
 		}
 	}
 

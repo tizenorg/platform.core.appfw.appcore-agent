@@ -84,8 +84,7 @@ typedef void (*service_app_control_cb) (app_control_h app_control, void *user_da
  * @see service_app_terminate_cb()
  * @see service_app_control_cb()
  */
-typedef struct
-{
+typedef struct {
 	service_app_create_cb create; /**< This callback function is called at the start of the application. */
 	service_app_terminate_cb terminate; /**< This callback function is called once after the main loop of the application exits. */
 	service_app_control_cb app_control; /**< This callback function is called when another application sends the launch request to the application. */

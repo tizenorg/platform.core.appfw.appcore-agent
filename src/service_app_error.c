@@ -31,27 +31,20 @@
 
 static const char* service_app_error_to_string(app_error_e error)
 {
-	switch (error)
-	{
+	switch (error) {
 	case APP_ERROR_NONE:
 		return "NONE";
-
 	case APP_ERROR_INVALID_PARAMETER:
 		return "INVALID_PARAMETER";
-
 	case APP_ERROR_OUT_OF_MEMORY:
 		return "OUT_OF_MEMORY";
-
 	case APP_ERROR_INVALID_CONTEXT:
 		return "INVALID_CONTEXT";
-
 	case APP_ERROR_NO_SUCH_FILE:
 		return "NO_SUCH_FILE";
-
 	case APP_ERROR_ALREADY_RUNNING:
 		return "ALREADY_RUNNING";
-
-	default :
+	default:
 		return "UNKNOWN";
 	}
 }
@@ -59,13 +52,9 @@ static const char* service_app_error_to_string(app_error_e error)
 int service_app_error(app_error_e error, const char* function, const char *description)
 {
 	if (description)
-	{
 		LOGE("[%s] %s(0x%08x) : %s", function, service_app_error_to_string(error), error, description);
-	}
 	else
-	{
 		LOGE("[%s] %s(0x%08x)", function, service_app_error_to_string(error), error);
-	}
 
 	return error;
 }
