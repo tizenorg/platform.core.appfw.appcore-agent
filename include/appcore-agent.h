@@ -57,6 +57,8 @@ enum appcore_agent_event {
 			/**< Language setting is changed */
 	APPCORE_AGENT_EVENT_REGION_CHANGE,
 			/**< Region setting is changed */
+	APPCORE_AGENT_EVENT_SUSPENDED_STATE_CHANGE,
+			/**< Suspend state is changed */
 };
 
 int appcore_agent_main(int argc, char **argv, struct agentcore_ops *ops);
@@ -68,6 +70,8 @@ int appcore_agent_terminate_without_restart();
 int appcore_agent_set_event_callback(enum appcore_agent_event event,
 					  int (*cb) (void *, void *), void *data);
 
+int _appcore_agent_init_suspend_dbus_handler(void *data);
+int _appcore_agent_fini_suspend_dbus_handler(void *data);
 #ifdef __cplusplus
 }
 #endif
