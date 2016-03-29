@@ -94,7 +94,7 @@ EXPORT_API void service_app_exit_without_restart(void)
 	appcore_agent_terminate_without_restart();
 }
 
-#define SERVICE_APP_EVENT_MAX 5
+#define SERVICE_APP_EVENT_MAX 6
 static Eina_List *handler_list[SERVICE_APP_EVENT_MAX] = {NULL, };
 static int handler_initialized = 0;
 static int appcore_agent_initialized = 0;
@@ -125,6 +125,7 @@ static void _free_handler_list(void)
 
 	for (i = 0; i < SERVICE_APP_EVENT_MAX; i++) {
 		EINA_LIST_FREE(handler_list[i], handler)
+		if (handler)
 			free(handler);
 	}
 
@@ -208,6 +209,25 @@ static int _service_app_region_changed(void *event_info, void *data)
 	return APP_ERROR_NONE;
 }
 
+static int _service_app_appcore_suspended_state_changed(void *event_info, void *data)
+{
+	Eina_List *l;
+	app_event_handler_h handler;
+	struct app_event_info event;
+
+	LOGI("_service_app_appcore_suspended_state_changed");
+	LOGD("[__SUSPEND__] suspended state: %d (0: suspend, 1: wake)", *(int *)event_info);
+
+	event.type = APP_EVENT_SUSPENDED_STATE_CHANGED;
+	event.value = event_info;
+
+	EINA_LIST_FOREACH(handler_list[APP_EVENT_SUSPENDED_STATE_CHANGED], l, handler) {
+		handler->cb(&event, handler->data);
+	}
+
+	return APP_ERROR_NONE;
+}
+
 static void _service_app_appcore_agent_set_event_cb(app_event_type_e event_type)
 {
 	switch (event_type) {
@@ -222,6 +242,10 @@ static void _service_app_appcore_agent_set_event_cb(app_event_type_e event_type)
 		break;
 	case APP_EVENT_REGION_FORMAT_CHANGED:
 		appcore_agent_set_event_callback(APPCORE_AGENT_EVENT_REGION_CHANGE, _service_app_region_changed, NULL);
+		break;
+	case APP_EVENT_SUSPENDED_STATE_CHANGED:
+		LOGD("[__SUSPEND__]");
+		appcore_agent_set_event_callback(APPCORE_AGENT_EVENT_SUSPENDED_STATE_CHANGE, _service_app_appcore_suspended_state_changed, NULL);
 		break;
 	default:
 		break;
@@ -243,6 +267,10 @@ static void _service_app_appcore_agent_unset_event_cb(app_event_type_e event_typ
 	case APP_EVENT_REGION_FORMAT_CHANGED:
 		appcore_agent_set_event_callback(APPCORE_AGENT_EVENT_REGION_CHANGE, NULL, NULL);
 		break;
+	case APP_EVENT_SUSPENDED_STATE_CHANGED:
+		LOGD("[__SUSPEND__]");
+		appcore_agent_set_event_callback(APPCORE_AGENT_EVENT_SUSPENDED_STATE_CHANGE, NULL, NULL);
+		break;
 	default:
 		break;
 	}
@@ -250,22 +278,28 @@ static void _service_app_appcore_agent_unset_event_cb(app_event_type_e event_typ
 
 static void _service_app_set_appcore_event_cb(void)
 {
-	app_event_type_e event;
+	_service_app_appcore_agent_set_event_cb(APP_EVENT_LOW_MEMORY);
+	_service_app_appcore_agent_set_event_cb(APP_EVENT_LANGUAGE_CHANGED);
+	_service_app_appcore_agent_set_event_cb(APP_EVENT_REGION_FORMAT_CHANGED);
 
-	for (event = APP_EVENT_LOW_MEMORY; event <= APP_EVENT_REGION_FORMAT_CHANGED; event++) {
-		if (eina_list_count(handler_list[event]) > 0)
-			_service_app_appcore_agent_set_event_cb(event);
-	}
+	if (eina_list_count(handler_list[APP_EVENT_LOW_BATTERY]) > 0)
+		_service_app_appcore_agent_set_event_cb(APP_EVENT_LOW_BATTERY);
+
+	if (eina_list_count(handler_list[APP_EVENT_SUSPENDED_STATE_CHANGED]) > 0)
+		_service_app_appcore_agent_set_event_cb(APP_EVENT_SUSPENDED_STATE_CHANGED);
 }
 
 static void _service_app_unset_appcore_event_cb(void)
 {
-	app_event_type_e event;
+	_service_app_appcore_agent_unset_event_cb(APP_EVENT_LOW_MEMORY);
+	_service_app_appcore_agent_unset_event_cb(APP_EVENT_LANGUAGE_CHANGED);
+	_service_app_appcore_agent_unset_event_cb(APP_EVENT_REGION_FORMAT_CHANGED);
 
-	for (event = APP_EVENT_LOW_MEMORY; event <= APP_EVENT_REGION_FORMAT_CHANGED; event++) {
-		if (eina_list_count(handler_list[event]) > 0)
-			_service_app_appcore_agent_unset_event_cb(event);
-	}
+	if (eina_list_count(handler_list[APP_EVENT_LOW_BATTERY]) > 0)
+		_service_app_appcore_agent_unset_event_cb(APP_EVENT_LOW_BATTERY);
+
+	if (eina_list_count(handler_list[APP_EVENT_SUSPENDED_STATE_CHANGED]) > 0)
+		_service_app_appcore_agent_unset_event_cb(APP_EVENT_SUSPENDED_STATE_CHANGED);
 }
 
 static int _service_app_create(void *data)
@@ -382,19 +416,19 @@ EXPORT_API int service_app_add_event_handler(app_event_handler_h *event_handler,
 	}
 
 	if (event_handler == NULL || callback == NULL)
-		return service_app_error(APP_ERROR_INVALID_PARAMETER, __FUNCTION__, NULL);
+		return service_app_error(APP_ERROR_INVALID_PARAMETER, __FUNCTION__, "null parameter");
 
-	if (event_type < APP_EVENT_LOW_MEMORY || event_type > APP_EVENT_REGION_FORMAT_CHANGED)
-		return service_app_error(APP_ERROR_INVALID_PARAMETER, __FUNCTION__, NULL);
+	if (event_type < APP_EVENT_LOW_MEMORY || event_type > APP_EVENT_SUSPENDED_STATE_CHANGED)
+		return service_app_error(APP_ERROR_INVALID_PARAMETER, __FUNCTION__, "invalid event type");
 
 	EINA_LIST_FOREACH(handler_list[event_type], l_itr, handler) {
 		if (handler->cb == callback)
-			return service_app_error(APP_ERROR_INVALID_PARAMETER, __FUNCTION__, NULL);
+			return service_app_error(APP_ERROR_INVALID_PARAMETER, __FUNCTION__, "already registered");
 	}
 
 	handler = calloc(1, sizeof(struct app_event_handler));
 	if (!handler)
-		return service_app_error(APP_ERROR_OUT_OF_MEMORY, __FUNCTION__, NULL);
+		return service_app_error(APP_ERROR_OUT_OF_MEMORY, __FUNCTION__, "insufficient memory");
 
 	handler->type = event_type;
 	handler->cb = callback;
