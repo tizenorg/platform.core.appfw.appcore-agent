@@ -11,6 +11,10 @@ SET(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} ${EXTRA_CFLAGS}")
 
 SET(CMAKE_SKIP_BUILD_RPATH TRUE)
 
+IF(_APPFW_FEATURE_BACKGROUND_MANAGEMENT)
+	ADD_DEFINITIONS("-D_APPFW_FEATURE_BACKGROUND_MANAGEMENT")
+ENDIF(_APPFW_FEATURE_BACKGROUND_MANAGEMENT)
+
 #################################################################
 # Build appcore-agent Library
 # ------------------------------

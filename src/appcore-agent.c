@@ -30,19 +30,36 @@
 #include <malloc.h>
 #include <Ecore.h>
 #include <linux/limits.h>
+#include <dlfcn.h>
+#include <glib.h>
 
-#include "aul.h"
-#include "appcore-agent.h"
+#include <bundle.h>
+#include <aul.h>
 #include <appcore-common.h>
 #include <app_control_internal.h>
 #include <dlog.h>
 #include <vconf.h>
+
+#include "appcore-agent.h"
+
+#ifdef _APPFW_FEATURE_BACKGROUND_MANAGEMENT
+#include <gio/gio.h>
+
+#define RESOURCED_FREEZER_PATH "/Org/Tizen/Resourced/Freezer"
+#define RESOURCED_FREEZER_INTERFACE "org.tizen.resourced.frezer"
+#define RESOURCED_FREEZER_SIGNAL "FreezerState"
+#define APPFW_SUSPEND_HINT_PATH "/Org/Tizen/Appfw/SuspendHint"
+#define APPFW_SUSPEND_HINT_INTERFACE "org.tizen.appfw.SuspendHint"
+#define APPFW_SUSPEND_HINT_SIGNAL "SuspendHint"
+
+#endif
 
 #ifdef LOG_TAG
 #undef LOG_TAG
 #endif
 
 #define LOG_TAG "APPCORE_AGENT"
+#define SQLITE_FLUSH_MAX	(1024 * 1024)
 
 #define _ERR(fmt, arg...) LOGE(fmt, ##arg)
 #define _INFO(fmt, arg...) LOGI(fmt, ##arg)
@@ -112,6 +129,7 @@ enum sys_event {
 	SE_LOWBAT,
 	SE_LANGCHG,
 	SE_REGIONCHG,
+	SE_SUSPENDED_STATE,
 	SE_MAX
 };
 
@@ -142,6 +160,7 @@ static enum appcore_agent_event to_ae[SE_MAX] = {
 	APPCORE_AGENT_EVENT_LOW_BATTERY,	/* SE_LOWBAT */
 	APPCORE_AGENT_EVENT_LANG_CHANGE,	/* SE_LANGCHG */
 	APPCORE_AGENT_EVENT_REGION_CHANGE,	/* SE_REGIONCHG */
+	APPCORE_AGENT_EVENT_SUSPENDED_STATE_CHANGE, /* SE_SUSPENDED_STATE */
 };
 
 static int appcore_agent_event_initialized[SE_MAX] = {0};
@@ -151,6 +170,11 @@ enum cb_type {			/* callback */
 	_CB_SYSNOTI,
 	_CB_APPNOTI,
 	_CB_VCONF,
+};
+
+enum appcore_agent_suspended_state {
+	APPCORE_AGENT_SUSPENDED_STATE_WILL_ENTER_SUSPEND = 0,
+	APPCORE_AGENT_SUSPENDED_STATE_DID_EXIT_FROM_SUSPEND
 };
 
 struct evt_ops {
@@ -173,6 +197,7 @@ struct evt_ops {
 struct agent_priv {
 	enum agent_state state;
 
+	struct agent_appcore *app_core;
 	struct agentcore_ops *ops;
 };
 
@@ -193,6 +218,9 @@ struct sys_op {
 
 struct agent_appcore {
 	int state;
+	unsigned int tid;
+	bool suspended_state;
+	bool allowed_bg;
 
 	const struct agent_ops *ops;
 	struct sys_op sops[SE_MAX];
@@ -239,11 +267,140 @@ static struct evt_ops evtops[] = {
 	 },
 };
 
+#ifdef _APPFW_FEATURE_BACKGROUND_MANAGEMENT
+static GDBusConnection *bus = NULL;
+static guint __suspend_dbus_handler_initialized = 0;
+#endif
+
 extern int app_control_create_event(bundle *data, struct app_control_s **app_control);
+static int __sys_do(struct agent_appcore *ac, void *event_info, enum sys_event event);
+
+static int appcore_agent_flush_memory(void)
+{
+	int (*flush_fn) (int);
+
+	if (!core.state) {
+		_ERR("Appcore not initialized");
+		return -1;
+	}
+
+	flush_fn = dlsym(RTLD_DEFAULT, "sqlite3_release_memory");
+	if (flush_fn) {
+		flush_fn(SQLITE_FLUSH_MAX);
+	}
+
+	malloc_trim(0);
+
+	return 0;
+}
+
+static int _appcore_agent_request_to_suspend(int pid)
+{
+#ifdef _APPFW_FEATURE_BACKGROUND_MANAGEMENT
+	GError *err = NULL;
+
+	if (bus == NULL) {
+		bus = g_bus_get_sync(G_BUS_TYPE_SYSTEM, NULL, &err);
+		if (bus == NULL) {
+			_ERR("g_bus_get_sync() is failed: %s", err->message);
+			g_error_free(err);
+			return -1;
+		}
+	}
+
+	if (g_dbus_connection_emit_signal(bus,
+					NULL,
+					APPFW_SUSPEND_HINT_PATH,
+					APPFW_SUSPEND_HINT_INTERFACE,
+					APPFW_SUSPEND_HINT_SIGNAL,
+					g_variant_new("(i)", pid),
+					&err) == FALSE) {
+		_ERR("g_dbus_connection_emit_signal() is failed: %s",
+					err->message);
+		g_error_free(err);
+		return -1;
+	}
+
+	if (g_dbus_connection_flush_sync(bus, NULL, &err) == FALSE) {
+		_ERR("g_dbus_connection_flush_sync() is failed: %s",
+					err->message);
+		g_error_free(err);
+		return -1;
+	}
+
+	_DBG("[__SUSPEND__] Send suspend hint, pid: %d", pid);
+#endif
+	return 0;
+}
+
+static void __prepare_to_suspend(void *data)
+{
+#ifdef _APPFW_FEATURE_BACKGROUND_MANAGEMENT
+	int suspend = APPCORE_AGENT_SUSPENDED_STATE_WILL_ENTER_SUSPEND;
+	struct agent_appcore *ac = data;
+
+	if (ac && !ac->allowed_bg && !ac->suspended_state) {
+		_DBG("[__SUSPEND__]");
+		__sys_do(ac, &suspend, SE_SUSPENDED_STATE);
+		_appcore_agent_request_to_suspend(getpid()); /* send dbus signal to resourced */
+		ac->suspended_state = true;
+	}
+#endif
+}
+
+static void __exit_from_suspend(void *data)
+{
+#ifdef _APPFW_FEATURE_BACKGROUND_MANAGEMENT
+	int suspend = APPCORE_AGENT_SUSPENDED_STATE_DID_EXIT_FROM_SUSPEND;
+	struct agent_appcore *ac = data;
+
+	if (ac && !ac->allowed_bg && ac->suspended_state) {
+		_DBG("[__SUSPEND__]");
+		__sys_do(ac, &suspend, SE_SUSPENDED_STATE);
+		ac->suspended_state = false;
+	}
+#endif
+}
+
+static gboolean __flush_memory(gpointer data)
+{
+#ifdef _APPFW_FEATURE_BACKGROUND_MANAGEMENT
+	struct agent_appcore *ac = (struct agent_appcore *)data;
+
+	appcore_agent_flush_memory();
+
+	if (!ac) {
+		return FALSE;
+	}
+	ac->tid = 0;
+
+	_DBG("[__SUSPEND__] flush case");
+	__prepare_to_suspend(ac);
+#endif
+	return FALSE;
+}
+
+static void __add_suspend_timer(struct agent_appcore *ac)
+{
+#ifdef _APPFW_FEATURE_BACKGROUND_MANAGEMENT
+	ac->tid = g_timeout_add_seconds(5, __flush_memory, ac);
+#endif
+}
+
+static void __remove_suspend_timer(struct agent_appcore *ac)
+{
+#ifdef _APPFW_FEATURE_BACKGROUND_MANAGEMENT
+	if (ac->tid > 0) {
+		g_source_remove(ac->tid);
+		ac->tid = 0;
+	}
+#endif
+}
 
 static void __exit_loop(void *data)
 {
 	ecore_main_loop_quit();
+	__remove_suspend_timer(&core);
 }
 
 static void __do_app(enum agent_event event, void *data, bundle * b)
@@ -297,6 +454,7 @@ static int __set_data(struct agent_priv *agent, struct agentcore_ops *ops)
 	}
 
 	agent->ops = ops;
+	agent->app_core = NULL;
 
 	_pid = getpid();
 
@@ -360,7 +518,7 @@ static int __sys_do(struct agent_appcore *ac, void *event_info, enum sys_event e
 static int __sys_lowmem_post(void *data, void *evt)
 {
 #if defined(MEMORY_FLUSH_ACTIVATE)
-	struct appcore *ac = data;
+	struct agent_appcore *ac = data;
 	ac->ops->cb_app(AE_LOWMEM_POST, ac->ops->data, NULL);
 #else
 	malloc_trim(0);
@@ -585,11 +743,27 @@ static int __del_vconf_list(void)
 
 static int __aul_handler(aul_type type, bundle *b, void *data)
 {
+	int ret = 0;
+	char *bg = NULL;
+	struct agent_appcore *ac = data;
+
 	switch (type) {
 	case AUL_START:
-		__agent_request(data, b);
+		bundle_get_str(b, AUL_K_ALLOWED_BG, &bg);
+		if (bg && strncmp(bg, "ALLOWED_BG", strlen("ALLOWED_BG")) == 0) {
+			_DBG("[__SUSPEND__] allowed background");
+			ac->allowed_bg = true;
+			__remove_suspend_timer(data);
+		}
+		ret = __agent_request(data, b);
 		break;
 	case AUL_RESUME:
+		bundle_get_str(b, AUL_K_ALLOWED_BG, &bg);
+		if (bg && strncmp(bg, "ALLOWED_BG", strlen("ALLOWED_BG")) == 0) {
+			_DBG("[__SUSPEND__] allowed background");
+			ac->allowed_bg = true;
+			__remove_suspend_timer(data);
+		}
 		break;
 /*	case AUL_STOP:
 		__service_stop(data);
@@ -597,14 +771,30 @@ static int __aul_handler(aul_type type, bundle *b, void *data)
 */
 	case AUL_TERMINATE:
 	case AUL_TERMINATE_BGAPP:
-		__agent_terminate(data);
+		if (!ac->allowed_bg) {
+			__remove_suspend_timer(data);
+		}
+		ret = __agent_terminate(data);
+		break;
+	case AUL_SUSPEND:
+		if (!ac->allowed_bg) {
+			_DBG("[__SUSPEND__] suspend");
+			__add_suspend_timer(data);
+		}
+		break;
+	case AUL_WAKE:
+		if (!ac->allowed_bg) {
+			_DBG("[__SUSPEND__] wake");
+			__remove_suspend_timer(data);
+			__exit_from_suspend(data);
+		}
 		break;
 	default:
 		/* do nothing */
 		break;
 	}
 
-	return 0;
+	return ret;
 }
 
 static int __get_package_app_name(int pid, char **app_name)
@@ -674,6 +864,19 @@ EXPORT_API int appcore_agent_set_event_callback(enum appcore_agent_event event,
 	return r;
 }
 
+#ifdef _APPFW_FEATURE_BACKGROUND_MANAGEMENT
+static gboolean __init_suspend(gpointer data)
+{
+	int r;
+
+	r = _appcore_agent_init_suspend_dbus_handler(&core);
+	if (r == -1)
+		_ERR("Initailzing suspended state handler failed");
+
+	return FALSE;
+}
+#endif
+
 EXPORT_API int appcore_agent_init(const struct agent_ops *ops,
 			    int argc, char **argv)
 {
@@ -704,6 +907,10 @@ EXPORT_API int appcore_agent_init(const struct agent_ops *ops,
 	free(app_name);
 	_retv_if(r == -1, -1);
 
+#ifdef _APPFW_FEATURE_BACKGROUND_MANAGEMENT
+	g_idle_add(__init_suspend, NULL);
+#endif
+
 	r = aul_launch_init(__aul_handler, &core);
 	if (r < 0)
 		goto err;
@@ -713,19 +920,26 @@ EXPORT_API int appcore_agent_init(const struct agent_ops *ops,
 		goto err;
 
 	core.ops = ops;
-	core.state = 1; /* TODO: use enum value */
+	core.state = 1;		/* TODO: use enum value */
+	core.tid = 0;
+	core.suspended_state = false;
+	core.allowed_bg = false;
 
 	return 0;
  err:
 	__del_vconf_list();
-
 	return -1;
 }
 
+static void appcore_agent_get_app_core(struct agent_appcore **ac)
+{
+	*ac = &core;
+}
 
 static int __before_loop(struct agent_priv *agent, int argc, char **argv)
 {
 	int r;
+	struct agent_appcore *ac = NULL;
 
 	if (argc <= 0 || argv == NULL) {
 		errno = EINVAL;
@@ -736,6 +950,10 @@ static int __before_loop(struct agent_priv *agent, int argc, char **argv)
 
 	r = appcore_agent_init(&s_ops, argc, argv);
 	_retv_if(r == -1, -1);
+
+	appcore_agent_get_app_core(&ac);
+	agent->app_core = ac;
+	SECURE_LOGD("[__SUSPEND__] agent appcore initialized, appcore addr: 0x%x", ac);
 
 	if (agent->ops && agent->ops->create) {
 		r = agent->ops->create(agent->ops->data);
@@ -797,3 +1015,70 @@ EXPORT_API int appcore_agent_main(int argc, char **argv,
 
 	return 0;
 }
+
+#ifdef _APPFW_FEATURE_BACKGROUND_MANAGEMENT
+static void __suspend_dbus_signal_handler(GDBusConnection *connection,
+					const gchar *sender_name,
+					const gchar *object_path,
+					const gchar *interface_name,
+					const gchar *signal_name,
+					GVariant *parameters,
+					gpointer user_data)
+{
+	struct agent_appcore *ac = (struct agent_appcore *)user_data;
+	gint suspend = APPCORE_SUSPENDED_STATE_DID_EXIT_FROM_SUSPEND;
+	gint pid;
+	gint status;
+
+	if (g_strcmp0(signal_name, RESOURCED_FREEZER_SIGNAL) == 0) {
+		g_variant_get(parameters, "(ii)", &status, &pid);
+		if (pid == getpid() && status == 0) { /* thawed */
+			if (ac && !ac->allowed_bg && ac->suspended_state) {
+				__remove_suspend_timer(ac);
+				__sys_do(ac, &suspend, SE_SUSPENDED_STATE);
+				ac->suspended_state = false;
+				__add_suspend_timer(ac);
+			}
+		}
+	}
+}
+
+int _appcore_agent_init_suspend_dbus_handler(void *data)
+{
+	GError *err = NULL;
+
+	if (__suspend_dbus_handler_initialized)
+		return 0;
+
+	if (!bus) {
+		bus = g_bus_get_sync(G_BUS_TYPE_SYSTEM, NULL, &err);
+		if (!bus) {
+			_ERR("Failed to connect to the D-BUS daemon: %s",
+						err->message);
+			g_error_free(err);
+			return -1;
+		}
+	}
+
+	__suspend_dbus_handler_initialized = g_dbus_connection_signal_subscribe(
+						bus,
+						NULL,
+						RESOURCED_FREEZER_INTERFACE,
+						RESOURCED_FREEZER_SIGNAL,
+						RESOURCED_FREEZER_PATH,
+						NULL,
+						G_DBUS_SIGNAL_FLAGS_NONE,
+						__suspend_dbus_signal_handler,
+						data,
+						NULL);
+	if (__suspend_dbus_handler_initialized == 0) {
+		_ERR("g_dbus_connection_signal_subscribe() is failed.");
+		return -1;
+	}
+
+	_DBG("[__SUSPEND__] suspend signal initialized");
+
+	return 0;
+}
+
+#endif
