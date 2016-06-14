@@ -114,8 +114,6 @@
 	} while (0)
 
 #define APPID_MAX 256
-#define PKGNAME_MAX 256
-#define PATH_RES "/res"
 #define PATH_LOCALE "/locale"
 
 static pid_t _pid;
@@ -877,13 +875,29 @@ static gboolean __init_suspend(gpointer data)
 }
 #endif
 
+static int __get_locale_resource_dir(char *locale_dir, int size)
+{
+	const char *res_path;
+
+	res_path = aul_get_app_resource_path();
+	if (res_path == NULL) {
+		_ERR("Failed to get resource path");
+		return -1;
+	}
+
+	snprintf(locale_dir, size, "%s" PATH_LOCALE, res_path);
+	if (access(locale_dir, R_OK) != 0)
+		return -1;
+
+	return 0;
+}
+
 EXPORT_API int appcore_agent_init(const struct agent_ops *ops,
 			    int argc, char **argv)
 {
 	int r;
-	const char *dirname;
+	char locale_dir[PATH_MAX];
 	char *app_name = NULL;
-	int pid;
 
 	if (core.state != 0) {
 		errno = EALREADY;
@@ -895,15 +909,17 @@ EXPORT_API int appcore_agent_init(const struct agent_ops *ops,
 		return -1;
 	}
 
-	pid = getpid();
-	r = __get_package_app_name(pid, &app_name);
+	r = __get_package_app_name(getpid(), &app_name);
 	if (r < 0)
 		return -1;
 
-	dirname = aul_get_app_root_path();
-	SECURE_LOGD("dir : %s", dirname);
+	r = __get_locale_resource_dir(locale_dir, sizeof(locale_dir));
+	if (r < 0)
+		return -1;
+
+	SECURE_LOGD("dir : %s", locale_dir);
 	SECURE_LOGD("app name : %s", app_name);
-	r = appcore_set_i18n(app_name, dirname);
+	r = appcore_set_i18n(app_name, locale_dir);
 	free(app_name);
 	_retv_if(r == -1, -1);
 
