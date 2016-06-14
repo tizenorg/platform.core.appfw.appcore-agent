@@ -28,7 +28,7 @@ SET(HEADERS_agent appcore-agent.h
 		  service_app.h)
 
 INCLUDE(FindPkgConfig)
-pkg_check_modules(pkg_agent REQUIRED aul dlog capi-appfw-app-control capi-appfw-app-common vconf ecore vconf-internal-keys appcore-common)
+pkg_check_modules(pkg_agent REQUIRED aul dlog capi-appfw-app-control capi-appfw-app-common vconf ecore vconf-internal-keys appcore-common libtzplatform-config)
 FOREACH(flag ${pkg_agent_CFLAGS})
 	SET(EXTRA_CFLAGS_agent "${EXTRA_CFLAGS_agent} ${flag}")
 ENDFOREACH(flag)

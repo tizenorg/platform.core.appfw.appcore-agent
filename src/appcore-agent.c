@@ -39,6 +39,7 @@
 #include <app_control_internal.h>
 #include <dlog.h>
 #include <vconf.h>
+#include <tzplatform_config.h>
 
 #include "appcore-agent.h"
 
@@ -117,6 +118,10 @@
 #define PKGNAME_MAX 256
 #define PATH_RES "/res"
 #define PATH_LOCALE "/locale"
+
+#define PATH_APP_ROOT tzplatform_getenv(TZ_USER_APP)
+#define PATH_SYS_RO_APP_ROOT tzplatform_getenv(TZ_SYS_RO_APP)
+#define PATH_SYS_RW_APP_ROOT tzplatform_getenv(TZ_SYS_RW_APP)
 
 static pid_t _pid;
 
@@ -877,13 +882,46 @@ static gboolean __init_suspend(gpointer data)
 }
 #endif
 
+static int __get_dir_name(char *dirname, int size)
+{
+	char pkgid[PKGNAME_MAX];
+	const char *root_path;
+	int r;
+
+	root_path = aul_get_preinit_root_path();
+	if (root_path) {
+		snprintf(dirname, size, "%s" PATH_RES PATH_LOCALE,
+				root_path);
+		if (access(dirname, R_OK) == 0)
+			return 0;
+	}
+
+	r = aul_app_get_pkgid_bypid(getpid(), pkgid, sizeof(pkgid));
+	if (r != AUL_R_OK)
+		return -1;
+
+	snprintf(dirname, size, "%s/%s" PATH_RES PATH_LOCALE,
+			PATH_APP_ROOT, pkgid);
+	if (access(dirname, R_OK) == 0)
+		return 0;
+
+	snprintf(dirname, size, "%s/%s" PATH_RES PATH_LOCALE,
+			PATH_SYS_RO_APP_ROOT, pkgid);
+	if (access(dirname, R_OK) == 0)
+		return 0;
+
+	snprintf(dirname, size, "%s/%s" PATH_RES PATH_LOCALE,
+			PATH_SYS_RW_APP_ROOT, pkgid);
+
+	return 0;
+}
+
 EXPORT_API int appcore_agent_init(const struct agent_ops *ops,
 			    int argc, char **argv)
 {
 	int r;
-	const char *dirname;
+	char dirname[PATH_MAX];
 	char *app_name = NULL;
-	int pid;
 
 	if (core.state != 0) {
 		errno = EALREADY;
@@ -895,12 +933,14 @@ EXPORT_API int appcore_agent_init(const struct agent_ops *ops,
 		return -1;
 	}
 
-	pid = getpid();
-	r = __get_package_app_name(pid, &app_name);
+	r = __get_package_app_name(getpid(), &app_name);
 	if (r < 0)
 		return -1;
 
-	dirname = aul_get_app_root_path();
+	r = __get_dir_name(dirname, sizeof(dirname));
+	if (r < 0)
+		return -1;
+
 	SECURE_LOGD("dir : %s", dirname);
 	SECURE_LOGD("app name : %s", app_name);
 	r = appcore_set_i18n(app_name, dirname);

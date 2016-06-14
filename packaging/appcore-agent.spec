@@ -15,6 +15,7 @@ BuildRequires:  pkgconfig(dlog)
 BuildRequires:  pkgconfig(ecore)
 BuildRequires:  pkgconfig(vconf)
 BuildRequires:  pkgconfig(vconf-internal-keys)
+BuildRequires:  pkgconfig(libtzplatform-config)
 
 %description
 Service Application basic
