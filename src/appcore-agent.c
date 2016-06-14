@@ -618,7 +618,7 @@ static int __sys_regionchg(void *data, void *evt)
 	const char *name;
 
 	name = vconf_keynode_get_name(key);
-	if (!strcmp(name, VCONFKEY_REGIONFORMAT))
+	if (name && !strcmp(name, VCONFKEY_REGIONFORMAT))
 		val = vconf_keynode_get_str(key);
 
 	return __sys_do(data, (void *)val, SE_REGIONCHG);
