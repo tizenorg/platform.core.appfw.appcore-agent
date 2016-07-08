@@ -273,6 +273,7 @@ static guint __suspend_dbus_handler_initialized = 0;
 extern int app_control_create_event(bundle *data, struct app_control_s **app_control);
 static int __sys_do(struct agent_appcore *ac, void *event_info, enum sys_event event);
 
+/* LCOV_EXCL_START */
 static int appcore_agent_flush_memory(void)
 {
 	int (*flush_fn) (int);
@@ -291,7 +292,9 @@ static int appcore_agent_flush_memory(void)
 
 	return 0;
 }
+/* LCOV_EXCL_STOP */
 
+/* LCOV_EXCL_START */
 static int _appcore_agent_request_to_suspend(int pid)
 {
 #ifdef _APPFW_FEATURE_BACKGROUND_MANAGEMENT
@@ -330,7 +333,9 @@ static int _appcore_agent_request_to_suspend(int pid)
 #endif
 	return 0;
 }
+/* LCOV_EXCL_STOP */
 
+/* LCOV_EXCL_START */
 static void __prepare_to_suspend(void *data)
 {
 #ifdef _APPFW_FEATURE_BACKGROUND_MANAGEMENT
@@ -345,7 +350,9 @@ static void __prepare_to_suspend(void *data)
 	}
 #endif
 }
+/* LCOV_EXCL_STOP */
 
+/* LCOV_EXCL_START */
 static void __exit_from_suspend(void *data)
 {
 #ifdef _APPFW_FEATURE_BACKGROUND_MANAGEMENT
@@ -359,7 +366,9 @@ static void __exit_from_suspend(void *data)
 	}
 #endif
 }
+/* LCOV_EXCL_START */
 
+/* LCOV_EXCL_START */
 static gboolean __flush_memory(gpointer data)
 {
 #ifdef _APPFW_FEATURE_BACKGROUND_MANAGEMENT
@@ -377,14 +386,18 @@ static gboolean __flush_memory(gpointer data)
 #endif
 	return FALSE;
 }
+/* LCOV_EXCL_STOP */
 
+/* LCOV_EXCL_START */
 static void __add_suspend_timer(struct agent_appcore *ac)
 {
 #ifdef _APPFW_FEATURE_BACKGROUND_MANAGEMENT
 	ac->tid = g_timeout_add_seconds(5, __flush_memory, ac);
 #endif
 }
+/* LCOV_EXCL_STOP */
 
+/* LCOV_EXCL_START */
 static void __remove_suspend_timer(struct agent_appcore *ac)
 {
 #ifdef _APPFW_FEATURE_BACKGROUND_MANAGEMENT
@@ -394,6 +407,7 @@ static void __remove_suspend_timer(struct agent_appcore *ac)
 	}
 #endif
 }
+/* LCOV_EXCL_STOP */
 
 static void __exit_loop(void *data)
 {
@@ -470,6 +484,7 @@ static int __agent_request(void *data, bundle * k)
 	return 0;
 }
 
+/* LCOV_EXCL_START */
 static int __agent_terminate(void *data)
 {
 	struct agent_appcore *ac = data;
@@ -481,6 +496,7 @@ static int __agent_terminate(void *data)
 
 	return 0;
 }
+/* LCOV_EXCL_STOP */
 
 static int __sys_do_default(struct agent_appcore *ac, enum sys_event event)
 {
@@ -1029,6 +1045,7 @@ EXPORT_API int appcore_agent_main(int argc, char **argv,
 	return 0;
 }
 
+/* LCOV_EXCL_START */
 #ifdef _APPFW_FEATURE_BACKGROUND_MANAGEMENT
 static void __suspend_dbus_signal_handler(GDBusConnection *connection,
 					const gchar *sender_name,
@@ -1055,6 +1072,7 @@ static void __suspend_dbus_signal_handler(GDBusConnection *connection,
 		}
 	}
 }
+/* LCOV_EXCL_STOP */
 
 int _appcore_agent_init_suspend_dbus_handler(void *data)
 {

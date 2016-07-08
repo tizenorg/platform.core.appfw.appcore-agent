@@ -209,6 +209,7 @@ static int _service_app_region_changed(void *event_info, void *data)
 	return APP_ERROR_NONE;
 }
 
+/* LCOV_EXCL_START */
 static int _service_app_appcore_suspended_state_changed(void *event_info, void *data)
 {
 	Eina_List *l;
@@ -227,6 +228,7 @@ static int _service_app_appcore_suspended_state_changed(void *event_info, void *
 
 	return APP_ERROR_NONE;
 }
+/* LCOV_EXCL_STOP */
 
 static void _service_app_appcore_agent_set_event_cb(app_event_type_e event_type)
 {
