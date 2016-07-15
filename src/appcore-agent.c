@@ -34,6 +34,7 @@
 #include <glib.h>
 
 #include <bundle.h>
+#include <bundle_internal.h>
 #include <aul.h>
 #include <appcore-common.h>
 #include <app_control_internal.h>
@@ -1031,19 +1032,50 @@ EXPORT_API int appcore_agent_main(int argc, char **argv,
 				struct agentcore_ops *ops)
 {
 	int r;
+	int new_argc = 0;
+	char **new_argv = NULL;
+	unsigned char *extra_data;
+	bundle *b;
+	int exported = 0;
 
 	r = __set_data(&priv, ops);
 	_retv_if(r == -1, -1);
 
-	r = __before_loop(&priv, argc, argv);
-	if (r == -1)
+	extra_data = aul_get_extra_data();
+	if (extra_data) {
+		b = bundle_decode((bundle_raw *)extra_data,
+				strlen((const char *)extra_data));
+		if (b) {
+			new_argc = bundle_export_to_argv(b, &new_argv);
+			bundle_free(b);
+		}
+
+		free(extra_data);
+	}
+
+	if (new_argv) {
+		new_argv[0] = argv[0];
+		exported = 1;
+	} else {
+		new_argc = argc;
+		new_argv = argv;
+	}
+
+	r = __before_loop(&priv, new_argc, new_argv);
+	if (r == -1) {
+		if (exported)
+			bundle_free_exported_argv(new_argc, &new_argv);
 		return -1;
+	}
 
 	ecore_main_loop_begin();
 
 	aul_status_update(STATUS_DYING);
 
 	__after_loop(&priv);
+
+	if (exported)
+		bundle_free_exported_argv(new_argc, &new_argv);
 
 	return 0;
 }
