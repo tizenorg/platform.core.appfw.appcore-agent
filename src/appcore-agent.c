@@ -570,11 +570,14 @@ static int __sys_lowbatt(void *data, void *evt)
 static int __sys_langchg_pre(void *data, void *evt)
 {
 	keynode_t *key = evt;
+	char language[32];
 	char *lang;
 	char *r;
 
 	lang = vconf_keynode_get_str(key);
 	if (lang) {
+		snprintf(language, sizeof(language), "%s:en_US:en_GB:en", lang);
+		setenv("LANGUAGE", language, 1);
 		setenv("LANG", lang, 1);
 		setenv("LC_MESSAGES", lang, 1);
 
